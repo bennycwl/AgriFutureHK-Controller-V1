@@ -1,31 +1,31 @@
 #include "Controller.h"
 
-LedController::LedController(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4) {
+Controller::Controller(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4, StorageManager* store) {
     pins[0] = p1;
     pins[1] = p2;
     pins[2] = p3;
     pins[3] = p4;
-    
-    // Initialize all channels to index 0 (PWM 0)
-    for(int i = 0; i < 4; i++) {
-        currentLevelIdx[i] = 0;
-    }
+    storage = store;
 }
 
-void LedController::begin() {
+void Controller::begin() {
     for (int i = 0; i < 4; i++) {
-        ledcSetup(i, freq, resolution); // Use loop index 'i' as the PWM channel (0-3)
+        ledcSetup(i, freq, resolution);
         ledcAttachPin(pins[i], i);
-        ledcWrite(i, 0); // Ensure LEDs start OFF
+        
+        // PHASE 2: Load the last known state from NVS on boot
+        currentLevelIdx[i] = storage->getPwmIndex(i);
+        ledcWrite(i, pwmLevels[currentLevelIdx[i]]);
+        
+        Serial.printf("Channel %d restored to PWM: %d\n", i + 1, pwmLevels[currentLevelIdx[i]]);
     }
 }
 
-void LedController::cycleChannel(uint8_t channelIndex) {
-    if (channelIndex >= 4) return; // Bounds check
+void Controller::cycleChannel(uint8_t channelIndex) {
+    if (channelIndex >= 4) return;
     
     currentLevelIdx[channelIndex]++;
     
-    // Wrap back to 0 if we exceed the 5 levels (index 4)
     if (currentLevelIdx[channelIndex] >= 5) {
         currentLevelIdx[channelIndex] = 0;
     }
@@ -33,16 +33,22 @@ void LedController::cycleChannel(uint8_t channelIndex) {
     uint8_t pwmValue = pwmLevels[currentLevelIdx[channelIndex]];
     ledcWrite(channelIndex, pwmValue);
     
-    Serial.printf("Channel %d cycled to PWM: %d\n", channelIndex + 1, pwmValue);
+    // PHASE 2: Save the new state directly to NVS
+    storage->setPwmIndex(channelIndex, currentLevelIdx[channelIndex]);
+    
+    Serial.printf("Channel %d cycled to PWM: %d (Saved to memory)\n", channelIndex + 1, pwmValue);
 }
 
-uint8_t LedController::getChannelPwmValue(uint8_t channelIndex) {
+uint8_t Controller::getChannelPwmValue(uint8_t channelIndex) {
     if (channelIndex >= 4) return 0;
     return pwmLevels[currentLevelIdx[channelIndex]];
 }
 
-void LedController::setChannelIndex(uint8_t channelIndex, uint8_t levelIdx) {
+void Controller::setChannelIndex(uint8_t channelIndex, uint8_t levelIdx) {
      if (channelIndex >= 4 || levelIdx >= 5) return;
      currentLevelIdx[channelIndex] = levelIdx;
      ledcWrite(channelIndex, pwmLevels[levelIdx]);
+     
+     // Ensure overriding via MQTT/CLI also saves to memory
+     storage->setPwmIndex(channelIndex, levelIdx);
 }
