@@ -15,44 +15,51 @@ void Controller::begin() {
         ledcAttachPin(pins[i], i);
         pinMode(ledPin, OUTPUT);
         
-        // PHASE 2: Load the last known state from NVS on boot
-        currentLevelIdx[i] = storage->getPwmIndex(i);
-        ledcWrite(i, pwmLevels[currentLevelIdx[i]]);
+        // Load the last known raw PWM value (0-255) from NVS on boot
+        currentPwmValue[i] = storage->getPwmIndex(i); 
+        ledcWrite(i, currentPwmValue[i]);
         
-        Serial.printf("Channel %d restored to PWM: %d\n", i + 1, pwmLevels[currentLevelIdx[i]]);
+        Serial.printf("Channel %d restored to PWM: %d\n", i + 1, currentPwmValue[i]);
     }
 }
 
+// Physical button handler: jumps to the next standard level based on current value
 void Controller::cycleChannel(uint8_t channelIndex) {
     if (channelIndex >= 4) return;
     
-    currentLevelIdx[channelIndex]++;
+    uint8_t currentVal = currentPwmValue[channelIndex];
+    uint8_t nextVal = 0; // Default to 0 (roll over)
     
-    if (currentLevelIdx[channelIndex] >= 5) {
-        currentLevelIdx[channelIndex] = 0;
+    // Find the next predefined level that is strictly greater than the current value
+    for (int i = 0; i < 5; i++) {
+        if (pwmLevels[i] > currentVal) {
+            nextVal = pwmLevels[i];
+            break;
+        }
     }
     
-    uint8_t pwmValue = pwmLevels[currentLevelIdx[channelIndex]];
-    ledcWrite(channelIndex, pwmValue);
-    
-    // PHASE 2: Save the new state directly to NVS
-    storage->setPwmIndex(channelIndex, currentLevelIdx[channelIndex]);
-    
-    Serial.printf("Channel %d cycled to PWM: %d (Saved to memory)\n", channelIndex + 1, pwmValue);
+    setChannelPWM(channelIndex, nextVal);
 }
 
 uint8_t Controller::getChannelPwmValue(uint8_t channelIndex) {
     if (channelIndex >= 4) return 0;
-    return pwmLevels[currentLevelIdx[channelIndex]];
+    return currentPwmValue[channelIndex];
 }
 
-void Controller::setChannelIndex(uint8_t channelIndex, uint8_t levelIdx) {
-     if (channelIndex >= 4 || levelIdx >= 5) return;
-     currentLevelIdx[channelIndex] = levelIdx;
-     ledcWrite(channelIndex, pwmLevels[levelIdx]);
-     
-     // Ensure overriding via MQTT/CLI also saves to memory
-     storage->setPwmIndex(channelIndex, levelIdx);
+// Universal command for CLI, MQTT, and Web: Accepts exact 0-255 value
+void Controller::setChannelPWM(uint8_t channelIndex, uint8_t pwmValue) {
+    if (channelIndex >= 4) return;
+    
+    currentPwmValue[channelIndex] = pwmValue;
+    ledcWrite(channelIndex, pwmValue);
+    
+    // Persist raw value to memory
+    storage->setPwmIndex(channelIndex, pwmValue);
+    
+    // Notify MQTT/Web of the state change
+    if (onStateChange) onStateChange(channelIndex, pwmValue);
+    
+    Serial.printf("Channel %d updated to PWM: %d (Saved to memory)\n", channelIndex + 1, pwmValue);
 }
 
 void Controller::setStatusMode(StatusMode mode) {
@@ -68,7 +75,7 @@ void Controller::updateStatusIndicator() {
     const int LED_PIN = ledPin; // Use the assigned LED pin
 
     switch (currentStatusMode) {
-        case MQTT_CONNECTED:
+        case MQTT_CONNECT:
             digitalWrite(LED_PIN, HIGH); // Solid ON
             break;
 
@@ -97,4 +104,8 @@ void Controller::updateStatusIndicator() {
             else if (step == 5 && (now - lastStatusChange >= 1000)) { digitalWrite(LED_PIN, HIGH); step = 0; lastStatusChange = now; }
             break;
     }
+}
+
+void Controller::setStateChangeCallback(StateChangeCallback cb) {
+    onStateChange = cb;
 }

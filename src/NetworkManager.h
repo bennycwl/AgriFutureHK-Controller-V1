@@ -35,6 +35,7 @@ public:
     void update();
     void resetWifi();
     bool isConnected();
+    void saveCredentials(String ssid, String pass);
 };
 
 #endif

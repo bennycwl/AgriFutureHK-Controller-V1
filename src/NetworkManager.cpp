@@ -67,9 +67,10 @@ void NetworkManager::begin() {
     
     if (ssid.length() > 0) {
         Serial.printf("Injecting CLI Wi-Fi credentials for: %s\n", ssid.c_str());
+        WiFi.mode(WIFI_STA);
         WiFi.begin(ssid.c_str(), pass.c_str());
     }
-
+    
     // Generate AP Name: AgriFutureHK_Ctrl_<mac>
     String mac = WiFi.macAddress();
     mac.replace(":", "");
@@ -125,4 +126,18 @@ String NetworkManager::getMacAddress() {
 
 bool NetworkManager::isConnected() {
     return (WiFi.status() == WL_CONNECTED);
+}
+
+void NetworkManager::saveCredentials(String ssid, String pass) {
+    // 1. Save to our NVS via StorageManager (for CLI consistency)
+    storage->setWifiSsid(ssid);
+    storage->setWifiPass(pass);
+    
+    // 2. Clear any previous/stale credentials
+    WiFi.disconnect(true);
+    
+    // 3. Connect manually so the system registers the connection
+    WiFi.begin(ssid.c_str(), pass.c_str());
+    
+    Serial.println("[Network] Credentials saved to NVS and connection initialized.");
 }

@@ -4,18 +4,18 @@
 #include "ButtonHandler.h"
 #include "CliHandler.h"
 #include "NetworkManager.h"
+#include "MqttManager.h" // NEW
 
-
-// Hardware Pinouts
 const uint8_t PWM_PINS[4] = {1, 0, 3, 2};
 const uint8_t BTN_PINS[4] = {7, 6, 5, 10};
 const uint8_t LED_PINS = 8;
 
 StorageManager storageManager;
-Controller controller(PWM_PINS[0], PWM_PINS[1], PWM_PINS[2], PWM_PINS[3],LED_PINS, &storageManager);
+Controller controller(PWM_PINS[0], PWM_PINS[1], PWM_PINS[2], PWM_PINS[3], LED_PINS, &storageManager);
 ButtonHandler buttonHandler(BTN_PINS[0], BTN_PINS[1], BTN_PINS[2], BTN_PINS[3], &controller);
 NetworkManager network(&storageManager); 
-CliHandler terminal(&storageManager, &controller, &network);
+MqttManager mqttManager(&storageManager, &controller); // NEW
+CliHandler terminal(&storageManager, &controller, &network); 
 
 void setup() {
     Serial.begin(115200);
@@ -28,22 +28,38 @@ void setup() {
     buttonHandler.begin();
     terminal.begin(); 
     network.begin();
+    mqttManager.begin(); // NEW
 
-    Serial.println("Phase 4 Init Complete. System Ready.");
+    // NEW: Link hardware state changes to the MQTT publisher.
+    // Whenever a button is pressed or CLI command is issued, this pushes to the broker.
+    controller.setStateChangeCallback([](uint8_t channelIndex, uint8_t pwmValue) {
+        mqttManager.publishState(channelIndex, pwmValue);
+    });
+
+    Serial.println("Phase 5 Init Complete. System Ready.");
 }
 
 void loop() {
     buttonHandler.update();
     terminal.update(); 
-    network.update(); // NEW: Keep the captive portal running in the background
+    network.update(); 
+    mqttManager.update(); // NEW: Keep MQTT alive and process messages
 
-    // 2. Update Status Indicator Logic
+    // Update Status Indicator Logic
     if (!network.isConnected()) {
-        controller.setStatusMode(TRYING_CONNECT);
-    } else if (true) {
-        controller.setStatusMode(MQTT_CONNECTED);
+        if (WiFi.getMode() == WIFI_MODE_AP || WiFi.getMode() == WIFI_MODE_APSTA) {
+            controller.setStatusMode(AP_MODE);
+        } else {
+            controller.setStatusMode(TRYING_CONNECT);
+        }
+    } else {
+        // NEW: Check MQTT connection status to finalize the LED indicator logic
+        if (mqttManager.isConnected()) {
+            controller.setStatusMode(MQTT_CONNECT); // Solid ON
+        } else {
+            controller.setStatusMode(WIFI_CONNECTED); // 2 Long, 1 Short
+        }
     }
     
     controller.updateStatusIndicator();
-
-  }
+}

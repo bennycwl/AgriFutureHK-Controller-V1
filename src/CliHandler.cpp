@@ -69,18 +69,16 @@ void CliHandler::processCommand(String cmd) {
 
     else if (action.equalsIgnoreCase("set")) {
         if (target.equalsIgnoreCase("wifi")) {
-            String ssid = getToken(cmd, ' ', 2);
+           String ssid = getToken(cmd, ' ', 2);
             String pass = getToken(cmd, ' ', 3);
-            
-            if (ssid.length() > 0) {
-                storage->setWifiSsid(ssid);
-                storage->setWifiPass(pass); // Password can be empty for open networks
-                Serial.printf("-> Wi-Fi credentials saved: %s\n", ssid.c_str());
-                Serial.println("-> Restarting device to apply connection...");
-                delay(1000);
-                ESP.restart(); // The cleanest way to ensure the Wi-Fi stack boots fresh
+    
+            if (ssid.length() > 0 && pass.length() > 0) {
+                network->saveCredentials(ssid, pass); // Syncs to both NVS and WiFiManager
+                Serial.println("-> Wi-Fi credentials updated and saved. Rebooting...");
+                delay(500);
+                ESP.restart(); // Restart to apply the new connection
             } else {
-                Serial.println("-> Error: SSID cannot be empty.");
+                Serial.println("-> Error: Usage: set wifi <SSID> <PASSWORD>");
             }
         } 
         else if (target.equalsIgnoreCase("mqtt")) {
@@ -88,23 +86,17 @@ void CliHandler::processCommand(String cmd) {
             storage->setMqttBroker(broker);
             Serial.printf("-> MQTT broker updated: %s\n", broker.c_str());
         } 
-        else if (target.equalsIgnoreCase("pwm")) {
+       else if (target.equalsIgnoreCase("pwm")) {
             int ch = getToken(cmd, ' ', 2).toInt();
             int val = getToken(cmd, ' ', 3).toInt();
             
-            // Map the value (0, 64, 128, 192, 255) to the array index (0, 1, 2, 3, 4)
-            int idx = -1;
-            if (val == 0) idx = 0;
-            else if (val == 64) idx = 1;
-            else if (val == 128) idx = 2;
-            else if (val == 192) idx = 3;
-            else if (val == 255) idx = 4;
-            
-            if (idx != -1 && ch >= 1 && ch <= 4) {
-                controller->setChannelIndex(ch - 1, idx); // Map channel 1-4 to index 0-3
+            // Validate boundaries (1-4 for channels, 0-255 for PWM)
+            if (val >= 0 && val <= 255 && ch >= 1 && ch <= 4) {
+                // Subtract 1 from channel to match 0-indexed array
+                controller->setChannelPWM(ch - 1, val); 
                 Serial.printf("-> Channel %d overridden to PWM %d via CLI.\n", ch, val);
             } else {
-                Serial.println("-> Error: Invalid channel (1-4) or PWM value (0, 64, 128, 192, 255).");
+                Serial.println("-> Error: Invalid channel (1-4) or PWM value (0-255).");
             }
         }
 
