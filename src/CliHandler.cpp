@@ -158,6 +158,12 @@ void CliHandler::processCommand(String cmd) {
 
 void CliHandler::printStatus() {
     Serial.println("\n--- Current Device Status ---");
+    wifi_mode_t mode = WiFi.getMode();
+    Serial.print("Network Mode: ");
+    if (mode == WIFI_MODE_STA) Serial.println("Station (STA)");
+    else if (mode == WIFI_MODE_AP) Serial.println("Access Point (AP)");
+    else if (mode == WIFI_MODE_APSTA) Serial.println("Station + Access Point (AP+STA)");
+    else Serial.println("Disconnected / Off");
     Serial.printf("Wi-Fi SSID : %s\n", storage->getWifiSsid().c_str());
     Serial.printf("Connected  : %s\n", network->isConnected() ? "Yes" : "No");
     Serial.printf("IP Address : %s\n", network->getIpAddress().c_str());

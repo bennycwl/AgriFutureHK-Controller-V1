@@ -7,35 +7,31 @@ This document outlines the development phases for the AgriFutureHK Food Server R
 
 ## Phase 1: Foundation & Hardware Abstraction
 **Objective:** Establish the PlatformIO environment and basic hardware I/O.
-* [ ] Initialize PlatformIO project for `esp32-c3-devkitm-1` (or generic C3).
-* [ ] Implement `LedController.cpp/h` to manage the ESP32 `ledc` peripheral (GPIO 1, 0, 3, 2).
-* [ ] Implement `ButtonHandler.cpp/h` using the `Bounce2` library for GPIO 5, 6, 7, 10 (`INPUT_PULLUP`).
-* [ ] Map button presses to cycle the respective PWM channel through values: 0, 64, 128, 192, 255.
+* [x] Initialize PlatformIO project for `esp32-c3-devkitm-1` (or generic C3).
+* [x] Implement `Controller.cpp/h` to manage the ESP32 `ledc` peripheral (GPIO 1, 0, 3, 2).
+* [x] Implement `ButtonHandler.cpp/h` using the `Bounce2` library for GPIO 6, 7, 5, 10 (`INPUT_PULLUP`).
+* [x] Map button presses to cycle the respective PWM channel through values: 0, 64, 128, 192, 255.
 
 ## Phase 2: Memory & State Persistence
 **Objective:** Ensure configuration and states survive power loss.
-* [ ] Implement `StorageManager.cpp/h` using the ESP32 `Preferences` library (NVS).
-* [ ] Define default taxonomy (`agrifuturehk`, `swh`, `r001`, `lv01`, `dv01`).
-* [ ] Define default MQTT broker (`test.mosquitto.org`).
-* [ ] Save PWM state to NVS upon change; load and apply PWM state during `setup()`.
+* [x] Implement `StorageManager.cpp/h` using the ESP32 `Preferences` library (NVS).
+* [x] Define default taxonomy (`agrifuturehk`, `swh`, `r001`, `lv01`, `dv01`).
+* [x] Define default MQTT broker (`test.mosquitto.org`).
+* [x] Save PWM state to NVS upon change; load and apply PWM state during `setup()`.
 
 ## Phase 3: Command Line Interface (CLI)
 **Objective:** Create a local debug and configuration interface.
-* [ ] Implement a non-blocking Serial reader in the main `loop()`.
-* [ ] Parse incoming strings for commands:
-    * `set wifi <ssid> <pass>`
-    * `set mqtt <broker>`
-    * `set info <company> <location> <rack> <level> <device>`
-    * `set pwm <channel 1-4> <value>`
-    * `status` (Print current config and channel states)
-* [ ] Link CLI actions to `StorageManager` to update NVS immediately.
+* [x] Implement a non-blocking Serial reader in the main `loop()`.
+* [x] Parse incoming strings for commands (`set wifi`, `set mqtt`, `set info`, `set pwm`, `status`).
+* [x] Link CLI actions to `StorageManager` to update NVS immediately.
 
-## Phase 4: Networking (WiFiManager)
-**Objective:** Simplify network onboarding for new modules.
-* [ ] Integrate `tzapu/WiFiManager` library.
-* [ ] Configure custom parameters in the captive portal (MQTT Broker, Company, Location, Rack, Level, Device) alongside standard SSID/Password.
-* [ ] On boot, attempt connection. If failed, spin up an Access Point (e.g., `AgriFuture-LED-AP`) for configuration.
-* [ ] Save custom parameters parsed from WiFiManager back into `StorageManager`.
+## Phase 4: Networking (Wi-Fi Integration)
+**Objective:** Connect the device to the local network for future telemetry.
+* [x] Implement `NetworkManager.cpp/h` to handle basic `WIFI_STA` connections.
+* [x] Read SSID and Password from NVS (configured via CLI) to establish a connection on boot.
+* [x] Handle non-blocking Wi-Fi reconnection logic in the `loop()`.
+* [ ] **Pending:** Integrate `tzapu/WiFiManager` library for Captive Portal fallback.
+* [ ] **Pending:** Configure custom parameters in the captive portal (MQTT Broker, Taxonomy) alongside standard SSID/Password.
 
 ## Phase 5: MQTT Integration & Telemetry
 **Objective:** Connect to the broader DCEA ecosystem.
