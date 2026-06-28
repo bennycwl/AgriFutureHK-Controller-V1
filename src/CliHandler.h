@@ -6,6 +6,7 @@
 #include "Controller.h"
 #include <WiFi.h>
 #include "NetworkManager.h"
+#include "MqttManager.h"
 
 class CliHandler {
 private:
@@ -13,13 +14,14 @@ private:
     Controller* controller;
     String inputBuffer;
     NetworkManager* network;
+    MqttManager* mqtt;
 
     void processCommand(String cmd);
     void printStatus();
     String getToken(String data, char separator, int index);
 
 public:
-    CliHandler(StorageManager* store, Controller* ctrl, NetworkManager* net);
+    CliHandler(StorageManager* store, Controller* ctrl, NetworkManager* net, MqttManager* mqt);
     void begin();
     void update();
 };

@@ -15,7 +15,7 @@ Controller controller(PWM_PINS[0], PWM_PINS[1], PWM_PINS[2], PWM_PINS[3], LED_PI
 ButtonHandler buttonHandler(BTN_PINS[0], BTN_PINS[1], BTN_PINS[2], BTN_PINS[3], &controller);
 NetworkManager network(&storageManager); 
 MqttManager mqttManager(&storageManager, &controller); // NEW
-CliHandler terminal(&storageManager, &controller, &network); 
+CliHandler terminal(&storageManager, &controller, &network, &mqttManager); 
 
 void setup() {
     Serial.begin(115200);
@@ -45,6 +45,9 @@ void loop() {
     network.update(); 
     mqttManager.update(); // NEW: Keep MQTT alive and process messages
 
+    static unsigned long lastBlinkTime = 0;
+    static bool ledState = false;
+
     // Update Status Indicator Logic
     if (!network.isConnected()) {
         if (WiFi.getMode() == WIFI_MODE_AP || WiFi.getMode() == WIFI_MODE_APSTA) {
@@ -60,6 +63,5 @@ void loop() {
             controller.setStatusMode(WIFI_CONNECTED); // 2 Long, 1 Short
         }
     }
-    
     controller.updateStatusIndicator();
 }

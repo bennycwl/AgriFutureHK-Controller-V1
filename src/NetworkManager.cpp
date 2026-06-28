@@ -68,6 +68,7 @@ void NetworkManager::begin() {
     if (ssid.length() > 0) {
         Serial.printf("Injecting CLI Wi-Fi credentials for: %s\n", ssid.c_str());
         WiFi.mode(WIFI_STA);
+        //WiFi.setTxPower(WIFI_POWER_8_5dBm);
         WiFi.begin(ssid.c_str(), pass.c_str());
     }
     
@@ -78,7 +79,6 @@ void NetworkManager::begin() {
     Serial.printf("Starting Portal with AP Name: %s\n", apName.c_str());
 
     // 6. Start the auto-connect sequence. If it fails, it spins up "DOMIX_AP"
-    wm.setConfigPortalBlocking(false);
     wm.autoConnect(apName.c_str());
 }
 

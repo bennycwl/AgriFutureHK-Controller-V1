@@ -1,9 +1,10 @@
 #include "CliHandler.h"
 
-CliHandler::CliHandler(StorageManager* store, Controller* ctrl, NetworkManager* net) {
+CliHandler::CliHandler(StorageManager* store, Controller* ctrl, NetworkManager* net, MqttManager* mqt) {
     storage = store;
     controller = ctrl;
     network = net; // Add this member variable
+    mqtt = mqt; // Add this member variable
 }
 
 void CliHandler::begin() {
@@ -57,11 +58,11 @@ void CliHandler::processCommand(String cmd) {
         Serial.println("  status");
         Serial.println("  set wifi <SSID> <Password>");
         Serial.println("  set mqtt <Broker>");
-        Serial.println("  set info Company");
-        Serial.println("  set info Location");
-        Serial.println("  set info Rack");
-        Serial.println("  set info Level");
-        Serial.println("  set info Device");
+        Serial.println("  set info-company <CompanyName>");
+        Serial.println("  set info-location <Location>");
+        Serial.println("  set info-rack <RackNumber>");
+        Serial.println("  set info-level <LevelNumber>");
+        Serial.println("  set info-device <DeviceName>");
         Serial.println("  set pwm <Channel(1-4)> <Value(0,64,128,192,255)>");
         Serial.println("  reset wifi");
         Serial.println("  reboot");
@@ -86,7 +87,7 @@ void CliHandler::processCommand(String cmd) {
             storage->setMqttBroker(broker);
             Serial.printf("-> MQTT broker updated: %s\n", broker.c_str());
         } 
-       else if (target.equalsIgnoreCase("pwm")) {
+        else if (target.equalsIgnoreCase("pwm")) {
             int ch = getToken(cmd, ' ', 2).toInt();
             int val = getToken(cmd, ' ', 3).toInt();
             
@@ -101,33 +102,33 @@ void CliHandler::processCommand(String cmd) {
         }
 
         // --- INDIVIDUAL TAXONOMY COMMANDS ---
-        else if (action.equalsIgnoreCase("info")) {
-            if (target.equalsIgnoreCase("company")) {
+        
+            else if (target.equalsIgnoreCase("info-company")) {
                 String val = getToken(cmd, ' ', 2);
                 if (val.length() > 0) { storage->setCompany(val); Serial.printf("-> Company updated: %s\n", val.c_str()); }
                 else { Serial.println("-> Error: Missing value."); }
             }
-            else if (target.equalsIgnoreCase("location")) {
+            else if (target.equalsIgnoreCase("info-location")) {
                 String val = getToken(cmd, ' ', 2);
                 if (val.length() > 0) { storage->setLocation(val); Serial.printf("-> Location updated: %s\n", val.c_str()); }
                 else { Serial.println("-> Error: Missing value."); }
             }
-            else if (target.equalsIgnoreCase("rack")) {
+            else if (target.equalsIgnoreCase("info-rack")) {
                 String val = getToken(cmd, ' ', 2);
                 if (val.length() > 0) { storage->setRack(val); Serial.printf("-> Rack updated: %s\n", val.c_str()); }
                 else { Serial.println("-> Error: Missing value."); }
             }
-            else if (target.equalsIgnoreCase("level")) {
+            else if (target.equalsIgnoreCase("info-level")) {
                 String val = getToken(cmd, ' ', 2);
                 if (val.length() > 0) { storage->setLevel(val); Serial.printf("-> Level updated: %s\n", val.c_str()); }
                 else { Serial.println("-> Error: Missing value."); }
             }
-            else if (target.equalsIgnoreCase("device")) {
+            else if (target.equalsIgnoreCase("info-device")) {
                 String val = getToken(cmd, ' ', 2);
                 if (val.length() > 0) { storage->setDevice(val); Serial.printf("-> Device updated: %s\n", val.c_str()); }
                 else { Serial.println("-> Error: Missing value."); }
             }
-        }
+        
     } 
     else if (action.equalsIgnoreCase("reset")) {
         if (target.equalsIgnoreCase("wifi")) {
@@ -157,7 +158,8 @@ void CliHandler::printStatus() {
     else if (mode == WIFI_MODE_APSTA) Serial.println("Station + Access Point (AP+STA)");
     else Serial.println("Disconnected / Off");
     Serial.printf("Wi-Fi SSID : %s\n", storage->getWifiSsid().c_str());
-    Serial.printf("Connected  : %s\n", network->isConnected() ? "Yes" : "No");
+    Serial.printf("Wi-Fi Connected  : %s\n", network->isConnected() ? "Yes" : "No");
+    Serial.printf("MQTT Status: %s\n", mqtt->isConnected() ? "Connected" : "Disconnected");
     Serial.printf("IP Address : %s\n", network->getIpAddress().c_str());
     Serial.printf("MAC Address: %s\n", network->getMacAddress().c_str());
     Serial.printf("MQTT Broker: %s\n", storage->getMqttBroker().c_str());

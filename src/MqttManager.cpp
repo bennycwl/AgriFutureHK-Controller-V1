@@ -21,20 +21,14 @@ void MqttManager::begin() {
     mac.replace(":", "");
     clientId = "AgriFutureHK_Ctrl_" + mac;
 
-    String lwtTopic = baseTopic + "/status";
-    String lwtMessage = "offline";
-    bool lwtRetain = true;
-    uint8_t lwtQos = 1;
-
     brokerAddress = storage->getMqttBroker(); 
     
     if (brokerAddress.length() > 0) {
+        espClient.setTimeout(5);
         client.setServer(brokerAddress.c_str(), 1883);
 
-        client.connect(clientId.c_str(), nullptr, nullptr, lwtTopic.c_str(), lwtQos, lwtRetain, lwtMessage.c_str());
-        
-        client.publish(lwtTopic.c_str(), "online", true);
-
+        // Set the callback, but DO NOT call client.connect() here! 
+        // Connecting here blocks the setup() and freezes the LED.
         client.setCallback([this](char* topic, byte* payload, unsigned int length) {
             this->mqttCallback(topic, payload, length);
         });
@@ -48,8 +42,14 @@ void MqttManager::reconnect() {
         Serial.print(storage->getMqttBroker());
         Serial.print("... ");
         
-        if (client.connect(clientId.c_str())) {
-            Serial.println("Connected!");
+        String lwtTopic = baseTopic + "/status";
+        
+        // Connect with Last Will and Testament (LWT)
+        if (client.connect(clientId.c_str(), nullptr, nullptr, lwtTopic.c_str(), 1, true, "offline")) {
+            Serial.println("[MQTT] Connected!");
+            
+            // Publish online status
+            client.publish(lwtTopic.c_str(), "online", true);
             
             // 1. Subscribe to control topics for all 4 channels
             for (int i = 1; i <= 4; i++) {
@@ -70,16 +70,15 @@ void MqttManager::reconnect() {
 void MqttManager::update() {
     static unsigned long lastHeartbeat = 0;
     
-    if (WiFi.status() == WL_CONNECTED) {
-        if (!client.connected() && storage->getMqttBroker().length() > 0) {
-            reconnect();
-        } else if (client.connected()) {
-            client.loop(); // Process incoming messages non-stop
-        }
+    // --- STRICT GUARD: Do absolutely nothing if Wi-Fi is not connected! ---
+    if (WiFi.status() != WL_CONNECTED) {
+        return; 
     }
 
-    if (client.connected()) {
-        client.loop();
+    if (!client.connected() && storage->getMqttBroker().length() > 0) {
+        reconnect();
+    } else if (client.connected()) {
+        client.loop(); // Process incoming messages non-stop
         
         // Send heartbeat every 60 seconds
         if (millis() - lastHeartbeat > 60000) {
@@ -87,19 +86,15 @@ void MqttManager::update() {
             String heartbeatTopic = baseTopic + "/heartbeat";
             client.publish(heartbeatTopic.c_str(), "alive");
         }
-    } else {
-        reconnect();
     }
 }
 
 void MqttManager::mqttCallback(char* topic, byte* payload, unsigned int length) {
-    // 1. Convert payload to string
     String msg = "";
     for (unsigned int i = 0; i < length; i++) {
         msg += (char)payload[i];
     }
     
-    // 2. Extract channel index from topic (ch1 -> 0, ch2 -> 1, etc.)
     String t = String(topic);
     int chIndex = -1;
     if (t.endsWith("/ch1/ctl")) chIndex = 0;
@@ -107,11 +102,8 @@ void MqttManager::mqttCallback(char* topic, byte* payload, unsigned int length) 
     else if (t.endsWith("/ch3/ctl")) chIndex = 2;
     else if (t.endsWith("/ch4/ctl")) chIndex = 3;
 
-    // 3. Process direct 0-255 PWM value
     if (chIndex != -1) {
         int val = msg.toInt();
-        
-        // Validate and apply directly
         if (val >= 0 && val <= 255) {
             controller->setChannelPWM(chIndex, (uint8_t)val);
             Serial.printf("[MQTT Rx] Channel %d set to PWM: %d\n", chIndex + 1, val);
@@ -124,7 +116,6 @@ void MqttManager::mqttCallback(char* topic, byte* payload, unsigned int length) 
 void MqttManager::publishState(uint8_t channelIndex, uint8_t pwmValue) {
     if (client.connected()) {
         String pubTopic = baseTopic + "/ch" + String(channelIndex + 1) + "/status";
-        // retain = true ensures the broker holds the last known state
         client.publish(pubTopic.c_str(), String(pwmValue).c_str(), true); 
         Serial.printf("[MQTT Tx] Topic: %s | Payload: %d\n", pubTopic.c_str(), pwmValue);
     }

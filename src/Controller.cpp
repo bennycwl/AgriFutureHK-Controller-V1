@@ -10,10 +10,13 @@ Controller::Controller(uint8_t p1, uint8_t p2, uint8_t p3, uint8_t p4, uint8_t p
 }
 
 void Controller::begin() {
+    // Initialize Status LED explicitly to ensure it doesn't float HIGH on boot
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, HIGH);
+
     for (int i = 0; i < 4; i++) {
         ledcSetup(i, freq, resolution);
         ledcAttachPin(pins[i], i);
-        pinMode(ledPin, OUTPUT);
         
         // Load the last known raw PWM value (0-255) from NVS on boot
         currentPwmValue[i] = storage->getPwmIndex(i); 
@@ -76,32 +79,37 @@ void Controller::updateStatusIndicator() {
 
     switch (currentStatusMode) {
         case MQTT_CONNECT:
-            digitalWrite(LED_PIN, HIGH); // Solid ON
+            analogWrite(ledPin, 220); 
             break;
 
         case TRYING_CONNECT: // Blinking: 500ms ON / 500ms OFF
             if (now - lastStatusChange >= 500) {
-                digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+                step = step  % 2;
+                if (step == 0) {
+                    analogWrite(LED_PIN, 230); // ON
+                } else {
+                    analogWrite(LED_PIN, 255); // OFF
+                }   
                 lastStatusChange = now;
             }
             break;
 
         case AP_MODE: // 1 Long (1000ms), 1 Short (200ms)
             // Cycle: ON 1000ms -> OFF 200ms -> ON 200ms -> OFF 1000ms
-            if (step == 0 && (now - lastStatusChange >= 1000)) { digitalWrite(LED_PIN, LOW); step = 1; lastStatusChange = now; }
-            else if (step == 1 && (now - lastStatusChange >= 200)) { digitalWrite(LED_PIN, HIGH); step = 2; lastStatusChange = now; }
-            else if (step == 2 && (now - lastStatusChange >= 200)) { digitalWrite(LED_PIN, LOW); step = 3; lastStatusChange = now; }
-            else if (step == 3 && (now - lastStatusChange >= 1000)) { digitalWrite(LED_PIN, HIGH); step = 0; lastStatusChange = now; }
+            if (step == 0 && (now - lastStatusChange >= 1000)) { analogWrite(LED_PIN, 230); step = 1; lastStatusChange = now; }
+            else if (step == 1 && (now - lastStatusChange >= 200)) { analogWrite(LED_PIN, 255); step = 2; lastStatusChange = now; }
+            else if (step == 2 && (now - lastStatusChange >= 200)) { analogWrite(LED_PIN, 230); step = 3; lastStatusChange = now; }
+            else if (step == 3 && (now - lastStatusChange >= 1000)) { analogWrite(LED_PIN, 255); step = 0; lastStatusChange = now; }
             break;
 
         case WIFI_CONNECTED: // 2 Long (1000ms), 1 Short (200ms)
             // Cycle: ON 1000ms -> OFF 200ms -> ON 1000ms -> OFF 200ms -> ON 200ms -> OFF 1000ms
-            if (step == 0 && (now - lastStatusChange >= 1000)) { digitalWrite(LED_PIN, LOW); step = 1; lastStatusChange = now; }
-            else if (step == 1 && (now - lastStatusChange >= 200)) { digitalWrite(LED_PIN, HIGH); step = 2; lastStatusChange = now; }
-            else if (step == 2 && (now - lastStatusChange >= 1000)) { digitalWrite(LED_PIN, LOW); step = 3; lastStatusChange = now; }
-            else if (step == 3 && (now - lastStatusChange >= 200)) { digitalWrite(LED_PIN, HIGH); step = 4; lastStatusChange = now; }
-            else if (step == 4 && (now - lastStatusChange >= 200)) { digitalWrite(LED_PIN, LOW); step = 5; lastStatusChange = now; }
-            else if (step == 5 && (now - lastStatusChange >= 1000)) { digitalWrite(LED_PIN, HIGH); step = 0; lastStatusChange = now; }
+            if (step == 0 && (now - lastStatusChange >= 1000)) { analogWrite(LED_PIN, 230); step = 1; lastStatusChange = now; }
+            else if (step == 1 && (now - lastStatusChange >= 200)) { analogWrite(LED_PIN, 255); step = 2; lastStatusChange = now; }
+            else if (step == 2 && (now - lastStatusChange >= 1000)) { analogWrite(LED_PIN, 230); step = 3; lastStatusChange = now; }
+            else if (step == 3 && (now - lastStatusChange >= 200)) { analogWrite(LED_PIN, 255); step = 4; lastStatusChange = now; }
+            else if (step == 4 && (now - lastStatusChange >= 200)) { analogWrite(LED_PIN, 230); step = 5; lastStatusChange = now; }
+            else if (step == 5 && (now - lastStatusChange >= 1000)) { analogWrite(LED_PIN, 255); step = 0; lastStatusChange = now; }
             break;
     }
 }
